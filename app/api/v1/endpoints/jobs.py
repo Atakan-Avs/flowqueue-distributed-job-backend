@@ -1,17 +1,18 @@
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import rate_limiter
 from app.db.session import get_db
 from app.schemas.job import JobCreate, JobListResponse, JobResponse
 from app.services.job_service import JobService
 from app.tasks.job_tasks import process_job
 from app.utils.enums import JobStatus
-from fastapi import Depends
-from app.core.rate_limit import rate_limiter
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/jobs", response_model=JobResponse, status_code=201)
@@ -24,6 +25,13 @@ def create_job(
         db,
         job_type=job_data.job_type,
         payload=job_data.payload,
+    )
+
+    logger.info(
+        "Job created | job_id=%s | job_type=%s | status=%s",
+        job.id,
+        job.job_type,
+        job.status,
     )
 
     process_job.delay(str(job.id))
@@ -53,6 +61,14 @@ def list_jobs(
         status=status,
     )
 
+    logger.info(
+        "Jobs listed | total=%s | skip=%s | limit=%s | status_filter=%s",
+        total,
+        skip,
+        limit,
+        status,
+    )
+
     return {
         "items": items,
         "total": total,
@@ -70,7 +86,14 @@ def get_job(
     job = JobService.get_job(db, job_id)
 
     if not job:
+        logger.warning("Job not found | job_id=%s", job_id)
         raise HTTPException(status_code=404, detail="Job not found")
+
+    logger.info(
+        "Job retrieved | job_id=%s | status=%s",
+        job.id,
+        job.status,
+    )
 
     return job
 
@@ -84,13 +107,21 @@ def retry_job(
     job, error = JobService.retry_job(db, job_id)
 
     if error == "not_found":
+        logger.warning("Retry failed - job not found | job_id=%s", job_id)
         raise HTTPException(status_code=404, detail="Job not found")
 
     if error == "processing":
+        logger.warning("Retry rejected - job still processing | job_id=%s", job_id)
         raise HTTPException(
             status_code=400,
             detail="Processing jobs cannot be retried",
         )
+
+    logger.info(
+        "Job retry triggered | job_id=%s | retry_count=%s",
+        job.id,
+        job.retry_count,
+    )
 
     process_job.delay(str(job.id))
     return job
