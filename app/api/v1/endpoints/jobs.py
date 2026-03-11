@@ -8,6 +8,8 @@ from app.schemas.job import JobCreate, JobListResponse, JobResponse
 from app.services.job_service import JobService
 from app.tasks.job_tasks import process_job
 from app.utils.enums import JobStatus
+from fastapi import Depends
+from app.core.rate_limit import rate_limiter
 
 router = APIRouter()
 
@@ -16,6 +18,7 @@ router = APIRouter()
 def create_job(
     job_data: JobCreate,
     db: Session = Depends(get_db),
+    _: None = Depends(rate_limiter),
 ):
     job = JobService.create_job(
         db,
@@ -33,6 +36,7 @@ def list_jobs(
     limit: int = Query(10, ge=1, le=100),
     status: str | None = Query(None),
     db: Session = Depends(get_db),
+    _: None = Depends(rate_limiter),
 ):
     if status is not None:
         valid_statuses = {item.value for item in JobStatus}
@@ -61,6 +65,7 @@ def list_jobs(
 def get_job(
     job_id: UUID,
     db: Session = Depends(get_db),
+    _: None = Depends(rate_limiter),
 ):
     job = JobService.get_job(db, job_id)
 
@@ -74,6 +79,7 @@ def get_job(
 def retry_job(
     job_id: UUID,
     db: Session = Depends(get_db),
+    _: None = Depends(rate_limiter),
 ):
     job, error = JobService.retry_job(db, job_id)
 
