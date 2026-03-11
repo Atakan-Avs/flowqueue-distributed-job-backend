@@ -28,7 +28,7 @@ def create_job(
     )
 
     logger.info(
-        "Job created | job_id=%s | job_type=%s | status=%s",
+        "Job created and queued | job_id=%s | job_type=%s | status=%s",
         job.id,
         job.job_type,
         job.status,
@@ -90,9 +90,10 @@ def get_job(
         raise HTTPException(status_code=404, detail="Job not found")
 
     logger.info(
-        "Job retrieved | job_id=%s | status=%s",
+        "Job retrieved | job_id=%s | status=%s | retry_count=%s",
         job.id,
         job.status,
+        job.retry_count,
     )
 
     return job
@@ -118,7 +119,7 @@ def retry_job(
         )
 
     logger.info(
-        "Job retry triggered | job_id=%s | retry_count=%s",
+        "Job retry triggered and queued | job_id=%s | retry_count=%s",
         job.id,
         job.retry_count,
     )
