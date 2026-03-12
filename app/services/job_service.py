@@ -64,3 +64,7 @@ class JobService:
 
         updated_job = JobRepository.update(db, job)
         return updated_job, None
+    
+    @staticmethod
+    def get_metrics(db: Session):
+        return JobRepository.get_metrics(db)

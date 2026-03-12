@@ -10,6 +10,7 @@ from app.schemas.job import JobCreate, JobListResponse, JobResponse
 from app.services.job_service import JobService
 from app.tasks.job_tasks import process_job
 from app.utils.enums import JobStatus
+from app.schemas.metrics import JobMetricsResponse
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -136,3 +137,8 @@ def retry_job(
 
     process_job.delay(str(job.id))
     return job
+
+@router.get("/metrics/jobs", response_model=JobMetricsResponse)
+def job_metrics(db: Session = Depends(get_db)):
+    metrics = JobService.get_metrics(db)
+    return metrics

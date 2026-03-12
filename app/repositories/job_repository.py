@@ -4,7 +4,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.models.job import Job
-
+from app.utils.enums import JobStatus
 
 class JobRepository:
     @staticmethod
@@ -55,3 +55,20 @@ class JobRepository:
         db.commit()
         db.refresh(job)
         return job
+    
+    
+    @staticmethod
+    def get_metrics(db: Session):
+        total_jobs = db.query(func.count(Job.id)).scalar() or 0
+        pending = db.query(func.count(Job.id)).filter(Job.status == JobStatus.PENDING.value).scalar() or 0
+        processing = db.query(func.count(Job.id)).filter(Job.status == JobStatus.PROCESSING.value).scalar() or 0
+        completed = db.query(func.count(Job.id)).filter(Job.status == JobStatus.COMPLETED.value).scalar() or 0
+        failed = db.query(func.count(Job.id)).filter(Job.status == JobStatus.FAILED.value).scalar() or 0
+
+        return dict(
+            total_jobs=total_jobs,
+            pending=pending,
+            processing=processing,
+            completed=completed,
+            failed=failed,
+        )
