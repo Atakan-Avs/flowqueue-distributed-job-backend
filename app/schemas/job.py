@@ -20,6 +20,8 @@ class JobResponse(BaseModel):
     result: str | None
     error_message: str | None
     retry_count: int
+    is_dead_letter: bool
+    dead_lettered_at: datetime | None
     created_at: datetime
     updated_at: datetime
 

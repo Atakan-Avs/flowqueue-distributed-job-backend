@@ -1,16 +1,15 @@
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Header, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.rate_limit import rate_limiter
 from app.db.session import get_db
 from app.schemas.job import JobCreate, JobListResponse, JobResponse
+from app.schemas.metrics import JobMetricsResponse
 from app.services.job_service import JobService
 from app.tasks.job_tasks import process_job
-from app.utils.enums import JobStatus
-from app.schemas.metrics import JobMetricsResponse
 from app.utils.enums import JobPriority, JobStatus
 
 router = APIRouter()
@@ -32,7 +31,7 @@ def create_job(
         )
 
     job, created = JobService.create_job(
-        db,
+        db=db,
         job_type=job_data.job_type,
         payload=job_data.payload,
         priority=job_data.priority,
@@ -98,6 +97,34 @@ def list_jobs(
     }
 
 
+@router.get("/jobs/dead-letter", response_model=JobListResponse)
+def list_dead_letter_jobs(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+    db: Session = Depends(get_db),
+    _: None = Depends(rate_limiter),
+):
+    items, total = JobService.list_dead_letter_jobs(
+        db=db,
+        skip=skip,
+        limit=limit,
+    )
+
+    logger.info(
+        "Dead letter jobs listed | total=%s | skip=%s | limit=%s",
+        total,
+        skip,
+        limit,
+    )
+
+    return {
+        "items": items,
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+    }
+
+
 @router.get("/jobs/{job_id}", response_model=JobResponse)
 def get_job(
     job_id: UUID,
@@ -148,7 +175,47 @@ def retry_job(
     process_job.apply_async(args=[str(job.id)], queue=job.priority)
     return job
 
+
+@router.post("/jobs/{job_id}/requeue", response_model=JobResponse)
+def requeue_dead_letter_job(
+    job_id: UUID,
+    db: Session = Depends(get_db),
+    _: None = Depends(rate_limiter),
+):
+    job, error = JobService.requeue_dead_letter_job(db, job_id)
+
+    if error == "not_found":
+        logger.warning("Requeue failed - job not found | job_id=%s", job_id)
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if error == "not_dead_letter":
+        logger.warning("Requeue rejected - job is not in dead letter queue | job_id=%s", job_id)
+        raise HTTPException(status_code=400, detail="Job is not in dead letter queue")
+
+    logger.info(
+        "Dead letter job requeued | job_id=%s | priority=%s",
+        job.id,
+        job.priority,
+    )
+
+    process_job.apply_async(args=[str(job.id)], queue=job.priority)
+    return job
+
+
 @router.get("/metrics/jobs", response_model=JobMetricsResponse)
-def job_metrics(db: Session = Depends(get_db)):
+def job_metrics(
+    db: Session = Depends(get_db),
+    _: None = Depends(rate_limiter),
+):
     metrics = JobService.get_metrics(db)
+
+    logger.info(
+        "Job metrics retrieved | total_jobs=%s | pending=%s | processing=%s | completed=%s | failed=%s",
+        metrics["total_jobs"],
+        metrics["pending"],
+        metrics["processing"],
+        metrics["completed"],
+        metrics["failed"],
+    )
+
     return metrics

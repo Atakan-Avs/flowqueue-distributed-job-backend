@@ -72,3 +72,23 @@ class JobRepository:
             completed=completed,
             failed=failed,
         )
+        
+        
+    @staticmethod
+    def get_dead_letter_jobs(
+        db: Session,
+        skip: int = 0,
+        limit: int = 10,
+    ):
+        query = db.query(Job).filter(Job.is_dead_letter == True)
+
+        items = (
+            query.order_by(Job.dead_lettered_at.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
+        total = db.query(func.count(Job.id)).filter(Job.is_dead_letter.is_(True)).scalar() or 0
+
+        return items, total

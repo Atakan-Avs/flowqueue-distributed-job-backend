@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.db.models.job import Job
 from app.repositories.job_repository import JobRepository
 from app.utils.enums import JobPriority, JobStatus
+from datetime import datetime
 
 
 class JobService:
@@ -63,6 +64,39 @@ class JobService:
         job.result = None
         job.error_message = None
         job.retry_count += 1
+
+        updated_job = JobRepository.update(db, job)
+        return updated_job, None
+    
+    
+    @staticmethod
+    def list_dead_letter_jobs(
+        db: Session,
+        skip: int = 0,
+        limit: int = 10,
+    ):
+        return JobRepository.get_dead_letter_jobs(
+            db=db,
+            skip=skip,
+            limit=limit,
+    )
+        
+        
+    @staticmethod
+    def requeue_dead_letter_job(db: Session, job_id: UUID):
+        job = JobRepository.get_by_id(db, job_id)
+
+        if not job:
+            return None, "not_found"
+
+        if not job.is_dead_letter:
+            return None, "not_dead_letter"
+
+        job.status = JobStatus.PENDING.value
+        job.result = None
+        job.error_message = None
+        job.is_dead_letter = False
+        job.dead_lettered_at = None
 
         updated_job = JobRepository.update(db, job)
         return updated_job, None

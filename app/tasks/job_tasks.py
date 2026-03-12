@@ -1,5 +1,6 @@
 import logging
 import time
+from datetime import datetime
 from uuid import UUID
 
 from app.core.celery_app import celery_app
@@ -8,6 +9,8 @@ from app.repositories.job_repository import JobRepository
 from app.utils.enums import JobStatus
 
 logger = logging.getLogger(__name__)
+
+MAX_RETRY_COUNT = 3
 
 
 @celery_app.task(name="app.tasks.job_tasks.process_job", bind=True, max_retries=3)
@@ -25,9 +28,10 @@ def process_job(self, job_id: str):
         JobRepository.update(db, job)
 
         logger.info(
-            "Job processing started | job_id=%s | job_type=%s",
+            "Job processing started | job_id=%s | job_type=%s | priority=%s",
             job.id,
             job.job_type,
+            job.priority,
         )
 
         time.sleep(5)
@@ -52,6 +56,23 @@ def process_job(self, job_id: str):
         job = JobRepository.get_by_id(db, UUID(job_id))
 
         if job:
+            job.retry_count += 1
+
+            if job.retry_count >= MAX_RETRY_COUNT:
+                job.status = JobStatus.FAILED.value
+                job.error_message = str(exc)
+                job.is_dead_letter = True
+                job.dead_lettered_at = datetime.utcnow()
+                JobRepository.update(db, job)
+
+                logger.error(
+                    "Job moved to dead letter queue | job_id=%s | error=%s | retry_count=%s",
+                    job.id,
+                    str(exc),
+                    job.retry_count,
+                )
+                return
+
             job.status = JobStatus.FAILED.value
             job.error_message = str(exc)
             JobRepository.update(db, job)
