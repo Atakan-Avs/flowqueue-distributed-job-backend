@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models.job import Job
 from app.repositories.job_repository import JobRepository
-from app.utils.enums import JobStatus
+from app.utils.enums import JobPriority, JobStatus
 
 
 class JobService:
@@ -13,6 +13,7 @@ class JobService:
         db: Session,
         job_type: str,
         payload: str,
+        priority: str = JobPriority.NORMAL.value,
         idempotency_key: str | None = None,
     ):
         if idempotency_key:
@@ -24,6 +25,7 @@ class JobService:
             job_type=job_type,
             payload=payload,
             status=JobStatus.PENDING.value,
+            priority=priority,
             idempotency_key=idempotency_key,
         )
         created_job = JobRepository.create(db, job)

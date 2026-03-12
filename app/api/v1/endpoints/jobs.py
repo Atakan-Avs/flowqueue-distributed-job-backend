@@ -11,6 +11,7 @@ from app.services.job_service import JobService
 from app.tasks.job_tasks import process_job
 from app.utils.enums import JobStatus
 from app.schemas.metrics import JobMetricsResponse
+from app.utils.enums import JobPriority, JobStatus
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -23,22 +24,31 @@ def create_job(
     _: None = Depends(rate_limiter),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
+    valid_priorities = {item.value for item in JobPriority}
+    if job_data.priority not in valid_priorities:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid priority. Allowed values: {', '.join(valid_priorities)}",
+        )
+
     job, created = JobService.create_job(
         db,
         job_type=job_data.job_type,
         payload=job_data.payload,
+        priority=job_data.priority,
         idempotency_key=idempotency_key,
     )
 
     if created:
         logger.info(
-            "Job created and queued | job_id=%s | job_type=%s | status=%s | idempotency_key=%s",
+            "Job created and queued | job_id=%s | job_type=%s | status=%s | priority=%s | idempotency_key=%s",
             job.id,
             job.job_type,
             job.status,
+            job.priority,
             job.idempotency_key,
         )
-        process_job.delay(str(job.id))
+        process_job.apply_async(args=[str(job.id)], queue=job.priority)
     else:
         logger.info(
             "Duplicate job prevented by idempotency key | job_id=%s | idempotency_key=%s",
@@ -135,7 +145,7 @@ def retry_job(
         job.retry_count,
     )
 
-    process_job.delay(str(job.id))
+    process_job.apply_async(args=[str(job.id)], queue=job.priority)
     return job
 
 @router.get("/metrics/jobs", response_model=JobMetricsResponse)

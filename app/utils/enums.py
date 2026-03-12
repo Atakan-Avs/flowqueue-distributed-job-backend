@@ -6,3 +6,8 @@ class JobStatus(str, Enum):
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
+    
+class JobPriority(str, Enum):
+    HIGH = "high"
+    NORMAL = "normal"
+    LOW = "low"

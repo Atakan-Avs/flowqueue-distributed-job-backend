@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
-from app.utils.enums import JobStatus
+from app.utils.enums import JobPriority, JobStatus
 
 
 class Job(Base):
@@ -22,6 +22,11 @@ class Job(Base):
         String(50),
         nullable=False,
         default=JobStatus.PENDING.value,
+    )
+    priority: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default=JobPriority.NORMAL.value,
     )
     idempotency_key: Mapped[str | None] = mapped_column(
         String(255),

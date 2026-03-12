@@ -7,12 +7,14 @@ from pydantic import BaseModel, Field
 class JobCreate(BaseModel):
     job_type: str = Field(..., min_length=1, max_length=100)
     payload: str = Field(..., min_length=1)
+    priority: str = Field(default="normal")
 
 
 class JobResponse(BaseModel):
     id: uuid.UUID
     job_type: str
     status: str
+    priority: str
     idempotency_key: str | None
     payload: str
     result: str | None

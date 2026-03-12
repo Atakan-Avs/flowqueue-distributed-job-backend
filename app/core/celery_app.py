@@ -1,6 +1,8 @@
-from celery import Celery
+from kombu import Queue
+
 from app.core.config import settings
 from app.core.logging import setup_logging
+from celery import Celery
 
 setup_logging()
 
@@ -18,4 +20,10 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="Europe/Istanbul",
     enable_utc=False,
+    task_default_queue="normal",
+    task_queues=(
+        Queue("high"),
+        Queue("normal"),
+        Queue("low"),
+    ),
 )
