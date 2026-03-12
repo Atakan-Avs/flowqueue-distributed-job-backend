@@ -1,7 +1,7 @@
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Header, Query
 from sqlalchemy.orm import Session
 
 from app.core.rate_limit import rate_limiter
@@ -20,21 +20,31 @@ def create_job(
     job_data: JobCreate,
     db: Session = Depends(get_db),
     _: None = Depends(rate_limiter),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
-    job = JobService.create_job(
+    job, created = JobService.create_job(
         db,
         job_type=job_data.job_type,
         payload=job_data.payload,
+        idempotency_key=idempotency_key,
     )
 
-    logger.info(
-        "Job created and queued | job_id=%s | job_type=%s | status=%s",
-        job.id,
-        job.job_type,
-        job.status,
-    )
+    if created:
+        logger.info(
+            "Job created and queued | job_id=%s | job_type=%s | status=%s | idempotency_key=%s",
+            job.id,
+            job.job_type,
+            job.status,
+            job.idempotency_key,
+        )
+        process_job.delay(str(job.id))
+    else:
+        logger.info(
+            "Duplicate job prevented by idempotency key | job_id=%s | idempotency_key=%s",
+            job.id,
+            job.idempotency_key,
+        )
 
-    process_job.delay(str(job.id))
     return job
 
 

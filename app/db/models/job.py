@@ -23,6 +23,11 @@ class Job(Base):
         nullable=False,
         default=JobStatus.PENDING.value,
     )
+    idempotency_key: Mapped[str | None] = mapped_column(
+        String(255),
+        unique=True,
+        nullable=True,
+    )
     payload: Mapped[str] = mapped_column(Text, nullable=False)
     result: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)

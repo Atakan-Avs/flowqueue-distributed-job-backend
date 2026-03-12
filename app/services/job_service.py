@@ -2,20 +2,32 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.repositories.job_repository import JobRepository
 from app.db.models.job import Job
+from app.repositories.job_repository import JobRepository
 from app.utils.enums import JobStatus
 
 
 class JobService:
     @staticmethod
-    def create_job(db: Session, job_type: str, payload: str):
+    def create_job(
+        db: Session,
+        job_type: str,
+        payload: str,
+        idempotency_key: str | None = None,
+    ):
+        if idempotency_key:
+            existing_job = JobRepository.get_by_idempotency_key(db, idempotency_key)
+            if existing_job:
+                return existing_job, False
+
         job = Job(
             job_type=job_type,
             payload=payload,
             status=JobStatus.PENDING.value,
+            idempotency_key=idempotency_key,
         )
-        return JobRepository.create(db, job)
+        created_job = JobRepository.create(db, job)
+        return created_job, True
 
     @staticmethod
     def get_job(db: Session, job_id: UUID):

@@ -19,6 +19,10 @@ class JobRepository:
         return db.query(Job).filter(Job.id == job_id).first()
 
     @staticmethod
+    def get_by_idempotency_key(db: Session, idempotency_key: str):
+        return db.query(Job).filter(Job.idempotency_key == idempotency_key).first()
+
+    @staticmethod
     def get_all(
         db: Session,
         skip: int = 0,
