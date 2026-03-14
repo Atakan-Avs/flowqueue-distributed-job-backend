@@ -4,6 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 from app.core.celery_app import celery_app
+from app.core.distributed_lock import RedisLock
 from app.db.session import SessionLocal
 from app.repositories.job_repository import JobRepository
 from app.utils.enums import JobStatus
@@ -16,12 +17,28 @@ MAX_RETRY_COUNT = 3
 @celery_app.task(name="app.tasks.job_tasks.process_job", bind=True, max_retries=3)
 def process_job(self, job_id: str):
     db = SessionLocal()
+    lock = RedisLock(key=f"lock:job:{job_id}", timeout=60)
+
+    if not lock.acquire():
+        logger.warning(
+            "Job skipped because lock is already held | job_id=%s",
+            job_id,
+        )
+        db.close()
+        return
 
     try:
         job = JobRepository.get_by_id(db, UUID(job_id))
 
         if not job:
             logger.warning("Job not found in worker | job_id=%s", job_id)
+            return
+
+        if job.is_dead_letter:
+            logger.warning(
+                "Dead letter job cannot be processed directly | job_id=%s",
+                job.id,
+            )
             return
 
         job.status = JobStatus.PROCESSING.value
@@ -87,4 +104,5 @@ def process_job(self, job_id: str):
         raise self.retry(exc=exc, countdown=5)
 
     finally:
+        lock.release()
         db.close()
