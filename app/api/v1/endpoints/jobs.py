@@ -11,6 +11,7 @@ from app.schemas.metrics import JobMetricsResponse
 from app.services.job_service import JobService
 from app.tasks.job_tasks import process_job
 from app.utils.enums import JobPriority, JobStatus
+from app.core.metrics import jobs_created_total
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -30,15 +31,20 @@ def create_job(
             detail=f"Invalid priority. Allowed values: {', '.join(valid_priorities)}",
         )
 
+    normalized_idempotency_key = idempotency_key.strip() if idempotency_key else None
+    if normalized_idempotency_key == "":
+        normalized_idempotency_key = None
+
     job, created = JobService.create_job(
         db=db,
         job_type=job_data.job_type,
         payload=job_data.payload,
         priority=job_data.priority,
-        idempotency_key=idempotency_key,
+        idempotency_key=normalized_idempotency_key,
     )
 
     if created:
+        jobs_created_total.inc()
         logger.info(
             "Job created and queued | job_id=%s | job_type=%s | status=%s | priority=%s | idempotency_key=%s",
             job.id,

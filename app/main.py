@@ -1,6 +1,7 @@
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from sqlalchemy import text
 
 from app.api.v1.router import api_router
@@ -18,7 +19,6 @@ app = FastAPI(
 )
 
 app.add_middleware(RequestIDMiddleware)
-
 app.include_router(api_router, prefix=settings.api_v1_prefix)
 
 
@@ -35,3 +35,11 @@ def root():
     return {
         "message": "FlowQueue API is running"
     }
+
+
+@app.get("/metrics")
+def metrics():
+    return Response(
+        content=generate_latest(),
+        media_type=CONTENT_TYPE_LATEST,
+    )

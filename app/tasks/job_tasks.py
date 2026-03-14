@@ -5,9 +5,16 @@ from uuid import UUID
 
 from app.core.celery_app import celery_app
 from app.core.distributed_lock import RedisLock
+from app.core.metrics import (
+    job_retries_total,
+    jobs_completed_total,
+    jobs_dead_letter_total,
+    jobs_failed_total,
+)
 from app.db.session import SessionLocal
 from app.repositories.job_repository import JobRepository
 from app.utils.enums import JobStatus
+
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +69,8 @@ def process_job(self, job_id: str):
         job.result = result
         job.error_message = None
         JobRepository.update(db, job)
+        
+        jobs_completed_total.inc()
 
         logger.info(
             "Job completed successfully | job_id=%s | status=%s",
@@ -74,6 +83,8 @@ def process_job(self, job_id: str):
 
         if job:
             job.retry_count += 1
+            job_retries_total.inc()
+            jobs_failed_total.inc()
 
             if job.retry_count >= MAX_RETRY_COUNT:
                 job.status = JobStatus.FAILED.value
@@ -81,6 +92,8 @@ def process_job(self, job_id: str):
                 job.is_dead_letter = True
                 job.dead_lettered_at = datetime.utcnow()
                 JobRepository.update(db, job)
+                
+                jobs_dead_letter_total.inc()
 
                 logger.error(
                     "Job moved to dead letter queue | job_id=%s | error=%s | retry_count=%s",
