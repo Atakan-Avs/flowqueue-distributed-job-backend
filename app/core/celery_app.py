@@ -1,8 +1,8 @@
+from celery import Celery
 from kombu import Queue
 
 from app.core.config import settings
 from app.core.logging import setup_logging
-from celery import Celery
 
 setup_logging()
 
@@ -10,7 +10,10 @@ celery_app = Celery(
     "flowqueue",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
-    include=["app.tasks.job_tasks"],
+    include=[
+        "app.tasks.job_tasks",
+        "app.tasks.beat_tasks",
+    ],
 )
 
 celery_app.conf.update(
@@ -26,4 +29,10 @@ celery_app.conf.update(
         Queue("normal"),
         Queue("low"),
     ),
+    beat_schedule={
+        "enqueue-scheduled-report-every-minute": {
+            "task": "app.tasks.beat_tasks.enqueue_scheduled_report",
+            "schedule": 60.0,
+        },
+    },
 )
