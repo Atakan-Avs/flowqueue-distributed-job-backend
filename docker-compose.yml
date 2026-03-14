@@ -15,7 +15,6 @@ services:
 
   worker:
     build: .
-    container_name: flowqueue_worker
     command: celery -A app.core.celery_app.celery_app worker --loglevel=info -E -Q high,normal,low
     volumes:
       - .:/app
@@ -53,6 +52,8 @@ services:
     container_name: flowqueue_grafana
     ports:
       - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
 
@@ -76,3 +77,4 @@ services:
 
 volumes:
   postgres_data:
+  grafana_data:
