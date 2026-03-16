@@ -119,3 +119,39 @@ def test_requeue_non_dead_letter_job_returns_400(client, monkeypatch):
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Job is not in dead letter queue"
+    
+    
+def test_retry_completed_job_returns_400(client, monkeypatch):
+    def fake_retry_job(db, job_id):
+        return None, "completed"
+
+    monkeypatch.setattr(jobs_endpoint.JobService, "retry_job", fake_retry_job)
+
+    response = client.post(f"/api/v1/jobs/{uuid4()}/retry")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Completed jobs cannot be retried"
+
+
+def test_retry_dead_letter_job_returns_400(client, monkeypatch):
+    def fake_retry_job(db, job_id):
+        return None, "dead_letter"
+
+    monkeypatch.setattr(jobs_endpoint.JobService, "retry_job", fake_retry_job)
+
+    response = client.post(f"/api/v1/jobs/{uuid4()}/retry")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Dead letter jobs must be requeued instead of retried"
+
+
+def test_retry_pending_job_returns_400(client, monkeypatch):
+    def fake_retry_job(db, job_id):
+        return None, "invalid_status"
+
+    monkeypatch.setattr(jobs_endpoint.JobService, "retry_job", fake_retry_job)
+
+    response = client.post(f"/api/v1/jobs/{uuid4()}/retry")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Only failed jobs can be retried"

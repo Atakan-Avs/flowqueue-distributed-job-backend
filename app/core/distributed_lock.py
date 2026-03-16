@@ -4,6 +4,14 @@ from app.core.redis_client import redis_client
 
 
 class RedisLock:
+    RELEASE_SCRIPT = """
+    if redis.call("get", KEYS[1]) == ARGV[1] then
+        return redis.call("del", KEYS[1])
+    else
+        return 0
+    end
+    """
+
     def __init__(self, key: str, timeout: int = 30):
         self.key = key
         self.timeout = timeout
@@ -21,7 +29,11 @@ class RedisLock:
         )
         return self.acquired
 
-    def release(self) -> None:
-        current_value = redis_client.get(self.key)
-        if current_value == self.value:
-            redis_client.delete(self.key)
+    def release(self) -> bool:
+        result = redis_client.eval(
+            self.RELEASE_SCRIPT,
+            1,
+            self.key,
+            self.value,
+        )
+        return result == 1

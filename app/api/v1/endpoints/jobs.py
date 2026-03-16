@@ -172,6 +172,27 @@ def retry_job(
             detail="Processing jobs cannot be retried",
         )
 
+    if error == "completed":
+        logger.warning("Retry rejected - job already completed | job_id=%s", job_id)
+        raise HTTPException(
+            status_code=400,
+            detail="Completed jobs cannot be retried",
+        )
+
+    if error == "dead_letter":
+        logger.warning("Retry rejected - dead letter job must be requeued | job_id=%s", job_id)
+        raise HTTPException(
+            status_code=400,
+            detail="Dead letter jobs must be requeued instead of retried",
+        )
+
+    if error == "invalid_status":
+        logger.warning("Retry rejected - only failed jobs can be retried | job_id=%s", job_id)
+        raise HTTPException(
+            status_code=400,
+            detail="Only failed jobs can be retried",
+        )
+
     logger.info(
         "Job retry triggered and queued | job_id=%s | retry_count=%s",
         job.id,

@@ -175,3 +175,66 @@ def test_create_job_reraises_integrity_error_without_idempotency_key(monkeypatch
         )
 
     assert db.rollback_called is True
+
+def test_retry_job_rejects_completed(monkeypatch):
+    job = SimpleNamespace(
+        id=uuid4(),
+        status="completed",
+        result="done",
+        error_message=None,
+        retry_count=0,
+        is_dead_letter=False,
+    )
+
+    def fake_get_by_id(db, job_id):
+        return job
+
+    monkeypatch.setattr("app.services.job_service.JobRepository.get_by_id", fake_get_by_id)
+
+    updated_job, error = JobService.retry_job(db=None, job_id=job.id)
+
+    assert updated_job is None
+    assert error == "completed"
+
+
+def test_retry_job_rejects_dead_letter(monkeypatch):
+    job = SimpleNamespace(
+        id=uuid4(),
+        status="failed",
+        result=None,
+        error_message="boom",
+        retry_count=3,
+        is_dead_letter=True,
+        dead_lettered_at="2026-03-16T10:00:00",
+    )
+
+    def fake_get_by_id(db, job_id):
+        return job
+
+    monkeypatch.setattr("app.services.job_service.JobRepository.get_by_id", fake_get_by_id)
+
+    updated_job, error = JobService.retry_job(db=None, job_id=job.id)
+
+    assert updated_job is None
+    assert error == "dead_letter"
+
+
+def test_retry_job_rejects_pending(monkeypatch):
+    job = SimpleNamespace(
+        id=uuid4(),
+        status="pending",
+        result=None,
+        error_message=None,
+        retry_count=0,
+        is_dead_letter=False,
+    )
+
+    def fake_get_by_id(db, job_id):
+        return job
+
+    monkeypatch.setattr("app.services.job_service.JobRepository.get_by_id", fake_get_by_id)
+
+    updated_job, error = JobService.retry_job(db=None, job_id=job.id)
+
+    assert updated_job is None
+    assert error == "invalid_status"

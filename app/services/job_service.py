@@ -1,11 +1,11 @@
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.models.job import Job
 from app.repositories.job_repository import JobRepository
 from app.utils.enums import JobPriority, JobStatus
-from datetime import datetime
 
 
 class JobService:
@@ -29,8 +29,21 @@ class JobService:
             priority=priority,
             idempotency_key=idempotency_key,
         )
-        created_job = JobRepository.create(db, job)
-        return created_job, True
+
+        try:
+            created_job = JobRepository.create(db, job)
+            return created_job, True
+        except IntegrityError:
+            db.rollback()
+
+            if not idempotency_key:
+                raise
+
+            existing_job = JobRepository.get_by_idempotency_key(db, idempotency_key)
+            if existing_job:
+                return existing_job, False
+
+            raise
 
     @staticmethod
     def get_job(db: Session, job_id: UUID):
@@ -57,8 +70,17 @@ class JobService:
         if not job:
             return None, "not_found"
 
+        if getattr(job, "is_dead_letter", False):
+            return None, "dead_letter"
+
         if job.status == JobStatus.PROCESSING.value:
             return None, "processing"
+
+        if job.status == JobStatus.COMPLETED.value:
+            return None, "completed"
+
+        if job.status != JobStatus.FAILED.value:
+            return None, "invalid_status"
 
         job.status = JobStatus.PENDING.value
         job.result = None
@@ -67,8 +89,7 @@ class JobService:
 
         updated_job = JobRepository.update(db, job)
         return updated_job, None
-    
-    
+
     @staticmethod
     def list_dead_letter_jobs(
         db: Session,
@@ -79,9 +100,8 @@ class JobService:
             db=db,
             skip=skip,
             limit=limit,
-    )
-        
-        
+        )
+
     @staticmethod
     def requeue_dead_letter_job(db: Session, job_id: UUID):
         job = JobRepository.get_by_id(db, job_id)
@@ -100,7 +120,7 @@ class JobService:
 
         updated_job = JobRepository.update(db, job)
         return updated_job, None
-    
+
     @staticmethod
     def get_metrics(db: Session):
         return JobRepository.get_metrics(db)
