@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
@@ -13,20 +14,23 @@ from app.db.session import engine
 setup_logging()
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    with engine.connect() as connection:
+        connection.execute(text("SELECT 1"))
+    logger.info("Application startup completed successfully")
+    yield
+
+
 app = FastAPI(
     title=settings.app_name,
     debug=settings.debug,
+    lifespan=lifespan,
 )
 
 app.add_middleware(RequestIDMiddleware)
 app.include_router(api_router, prefix=settings.api_v1_prefix)
-
-
-@app.on_event("startup")
-def startup_check():
-    with engine.connect() as connection:
-        connection.execute(text("SELECT 1"))
-    logger.info("Application startup completed successfully")
 
 
 @app.get("/")

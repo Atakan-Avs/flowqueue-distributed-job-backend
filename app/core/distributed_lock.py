@@ -30,10 +30,14 @@ class RedisLock:
         return self.acquired
 
     def release(self) -> bool:
+        if not self.acquired:
+            return False
+
         result = redis_client.eval(
             self.RELEASE_SCRIPT,
             1,
             self.key,
             self.value,
         )
+        self.acquired = False
         return result == 1
