@@ -117,5 +117,6 @@ def process_job(self, job_id: str):
         raise self.retry(exc=exc, countdown=5)
 
     finally:
-        lock.release()
+        if lock.acquired:
+            lock.release()
         db.close()

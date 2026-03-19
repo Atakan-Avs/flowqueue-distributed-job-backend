@@ -30,7 +30,7 @@ celery_app.conf.update(
         Queue("low"),
     ),
     beat_schedule={
-        "enqueue-scheduled-report-every-minute": {
+        "enqueue-scheduled-report-daily": {
             "task": "app.tasks.beat_tasks.enqueue_scheduled_report",
             "schedule": 86400.0,
         },
