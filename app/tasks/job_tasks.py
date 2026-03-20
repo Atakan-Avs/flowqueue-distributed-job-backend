@@ -11,10 +11,10 @@ from app.core.metrics import (
     jobs_dead_letter_total,
     jobs_failed_total,
 )
+from app.db.models.job_attempt import JobAttempt
 from app.db.session import SessionLocal
 from app.repositories.job_repository import JobRepository
 from app.utils.enums import JobStatus
-
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,8 @@ def process_job(self, job_id: str):
         db.close()
         return
 
+    attempt = None
+
     try:
         job = JobRepository.get_by_id(db, UUID(job_id))
 
@@ -41,7 +43,23 @@ def process_job(self, job_id: str):
             logger.warning("Job not found in worker | job_id=%s", job_id)
             return
 
+        attempt = JobAttempt(
+            job_id=job.id,
+            attempt_number=job.retry_count + 1,
+            status="processing",
+            started_at=datetime.utcnow(),
+        )
+        db.add(attempt)
+        db.commit()
+        db.refresh(attempt)
+
         if job.is_dead_letter:
+            attempt.status = "failed"
+            attempt.error_message = "Dead letter job cannot be processed directly."
+            attempt.finished_at = datetime.utcnow()
+            db.add(attempt)
+            db.commit()
+
             logger.warning(
                 "Dead letter job cannot be processed directly | job_id=%s",
                 job.id,
@@ -69,7 +87,13 @@ def process_job(self, job_id: str):
         job.result = result
         job.error_message = None
         JobRepository.update(db, job)
-        
+
+        if attempt:
+            attempt.status = "success"
+            attempt.finished_at = datetime.utcnow()
+            db.add(attempt)
+            db.commit()
+
         jobs_completed_total.inc()
 
         logger.info(
@@ -80,6 +104,13 @@ def process_job(self, job_id: str):
 
     except Exception as exc:
         job = JobRepository.get_by_id(db, UUID(job_id))
+
+        if attempt:
+            attempt.status = "failed"
+            attempt.error_message = str(exc)
+            attempt.finished_at = datetime.utcnow()
+            db.add(attempt)
+            db.commit()
 
         if job:
             job.retry_count += 1
@@ -92,7 +123,7 @@ def process_job(self, job_id: str):
                 job.is_dead_letter = True
                 job.dead_lettered_at = datetime.utcnow()
                 JobRepository.update(db, job)
-                
+
                 jobs_dead_letter_total.inc()
 
                 logger.error(

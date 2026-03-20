@@ -3,7 +3,7 @@ from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 from app.utils.enums import JobPriority, JobStatus
@@ -50,4 +50,10 @@ class Job(Base):
         default=datetime.utcnow,
         onupdate=datetime.utcnow,
         nullable=False,
+    )
+    
+    attempts = relationship(
+        "JobAttempt",
+        back_populates="job",
+        cascade="all, delete-orphan",
     )
