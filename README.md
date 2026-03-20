@@ -1,4 +1,4 @@
-# FlowQueue – Distributed Job Processing Backend
+# FlowQueue – Distributed Job Processing Backend 
 
 FlowQueue is a production-style distributed job processing backend built to explore how scalable background processing systems work.
 
