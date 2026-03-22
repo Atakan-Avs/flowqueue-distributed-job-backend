@@ -34,5 +34,10 @@ celery_app.conf.update(
             "task": "app.tasks.beat_tasks.enqueue_scheduled_report",
             "schedule": 86400.0,
         },
+        "recover-stuck-jobs-every-5-minutes": {
+            "task": "app.tasks.beat_tasks.recover_stuck_jobs",
+            "schedule": 300.0,
+        },
+
     },
 )
