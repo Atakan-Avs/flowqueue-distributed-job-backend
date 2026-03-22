@@ -1,5 +1,4 @@
 import logging
-import time
 from datetime import datetime
 from uuid import UUID
 
@@ -15,6 +14,7 @@ from app.db.models.job_attempt import JobAttempt
 from app.db.session import SessionLocal
 from app.repositories.job_repository import JobRepository
 from app.utils.enums import JobStatus
+from app.handlers.factory import JobHandlerFactory
 
 logger = logging.getLogger(__name__)
 
@@ -76,12 +76,8 @@ def process_job(self, job_id: str):
             job.priority,
         )
 
-        time.sleep(5)
-
-        if "fail" in job.payload.lower():
-            raise ValueError("Simulated job failure triggered by payload.")
-
-        result = f"processed payload: {job.payload}"
+        handler = JobHandlerFactory.get_handler(job.job_type)
+        result = handler.handle(job.payload)
 
         job.status = JobStatus.COMPLETED.value
         job.result = result
