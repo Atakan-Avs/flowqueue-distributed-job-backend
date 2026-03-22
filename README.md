@@ -1,36 +1,64 @@
-# FlowQueue – Distributed Job Processing Backend 
+# FlowQueue – Distributed & Event-Driven Job Processing System
 
-FlowQueue is a production-style distributed job processing backend built to explore how scalable background processing systems work.
+FlowQueue is a production-style distributed job processing backend designed to simulate how modern scalable systems handle asynchronous workloads and inter-service communication.
 
-The project demonstrates a queue-based architecture where jobs are created through an API, placed into Redis queues, and processed asynchronously by Celery workers.
-
-It also includes observability tools such as Prometheus and Grafana to monitor system behavior.
+The system combines **Celery-based task execution** with **Kafka-based event streaming**, creating a hybrid architecture that supports both background processing and event-driven workflows.
 
 ---
 
-# Architecture
+# Architecture Overview
 
-The system follows a distributed worker architecture:
+FlowQueue follows a distributed and event-driven architecture:
 
 Client  
 ↓  
 FastAPI API  
 ↓  
-Redis Queue  
+Redis Queue (Celery)  
 ↓  
 Celery Workers  
 ↓  
 PostgreSQL Database  
 
-Jobs are created through the API and placed into Redis queues. Workers consume jobs from these queues and update their status in the database.
+AND  
+
+Celery Workers  
+↓  
+Kafka Topic (`job-events`)  
+↓  
+Kafka Consumer  
+
+---
+
+# Core Concepts
+
+### Task Execution Layer (Celery)
+
+Celery is responsible for executing background jobs:
+
+• Processes jobs asynchronously  
+• Supports retries and failure handling  
+• Uses Redis as broker  
+
+---
+
+### Event Layer (Kafka)
+
+Kafka is used to publish system events:
+
+• `job.completed`  
+• `job.failed`  
+• `job.dead_lettered`  
+
+These events are consumed by independent consumers, enabling loosely coupled system design.
 
 ---
 
 # Key Features
 
-### Job Management API
+## Job Management API
 
-Built with FastAPI, the API allows clients to:
+Built with FastAPI, the API allows:
 
 • Create jobs  
 • List jobs  
@@ -38,7 +66,7 @@ Built with FastAPI, the API allows clients to:
 • Retry failed jobs  
 • Requeue dead letter jobs  
 
-Example endpoints:
+Endpoints:
 
 
 POST /api/v1/jobs
@@ -51,114 +79,106 @@ GET /api/v1/jobs/dead-letter
 
 ---
 
-# Distributed Queue System
+## Distributed Queue System
 
-The project uses **Redis + Celery** for asynchronous job processing.
+Uses **Redis + Celery**:
 
-Jobs are pushed to Redis queues and consumed by Celery workers.
-
-Multiple workers can run simultaneously, allowing horizontal scaling.
-
----
-
-# Priority Queue Support
-
-Jobs support priority levels:
-
-
-high
-normal
-low
-
-
-Workers listen to multiple queues so higher priority jobs are processed first.
+• Jobs are queued in Redis  
+• Workers process jobs asynchronously  
+• Supports horizontal scaling  
 
 ---
 
-# Retry Mechanism
+## Handler-Based Execution System
 
-Failed jobs are automatically retried.
+Jobs are processed using a handler architecture:
 
-Retry behavior:
+• EmailHandler  
+• ReportHandler  
+• WebhookHandler  
 
-
-MAX_RETRY = 3
-
-
-If a job fails multiple times it will eventually be moved to the Dead Letter Queue.
+This decouples business logic from worker orchestration and makes the system easily extensible.
 
 ---
 
-# Dead Letter Queue (DLQ)
+## Retry & Dead Letter Queue (DLQ)
 
-If a job fails after reaching the retry limit, it is marked as:
-
-
-is_dead_letter = true
-
-
-Dead letter jobs can later be inspected or requeued.
-
-This pattern is commonly used in production systems to prevent infinite retry loops.
+• Jobs retry automatically (max 3 attempts)  
+• Failed jobs are moved to DLQ  
+• Prevents infinite retry loops  
 
 ---
 
-# Idempotency Protection
+## Job Attempt Tracking
 
-The API supports an **Idempotency-Key header**.
+Each execution attempt is recorded:
 
-This prevents duplicate job creation when the same request is sent multiple times.
+• attempt number  
+• status (processing, success, failed)  
+• execution timestamps  
 
-Example:
-
-
-Idempotency-Key: 12345-abc
-
-
-If the request is repeated, the same job is returned instead of creating a new one.
+This improves observability and debugging.
 
 ---
 
-# Distributed Locking
+## Stuck Job Recovery
 
-The system uses Redis-based distributed locks to ensure that a job cannot be processed simultaneously by multiple workers.
+The system detects jobs stuck in `processing` state:
 
-Lock format:
+• Periodic scan via Celery Beat  
+• Requeues jobs if retry limit not reached  
+• Moves to DLQ if exhausted  
+
+This ensures resilience against worker crashes.
+
+---
+
+## Idempotency Protection
+
+Supports:
+
+
+Idempotency-Key: <unique-key>
+
+
+Prevents duplicate job creation on repeated requests.
+
+---
+
+## Distributed Locking
+
+Redis-based locks ensure:
 
 
 lock:job:{job_id}
 
 
-This protects the system from concurrency issues in distributed environments.
+A job cannot be processed by multiple workers simultaneously.
 
 ---
 
-# Rate Limiting
+## Rate Limiting
 
-Basic rate limiting is implemented using Redis to prevent API abuse or excessive request bursts.
+Basic Redis-based rate limiting prevents API abuse.
 
 ---
 
 # Observability
 
-Monitoring and observability are built into the system.
+## Logging
 
-### Structured Logging
+Structured logs include:
 
-Logs include useful context fields such as:
-
-
-request_id
-job_id
-status
-retry_count
-
+• request_id  
+• job_id  
+• retry_count  
+• status  
 
 ---
 
-### Prometheus Metrics
+## Prometheus Metrics
 
-The API exposes metrics such as:
+Exposed metrics:
 
 
 flowqueue_jobs_created_total
@@ -170,152 +190,118 @@ flowqueue_job_retries_total
 
 ---
 
-### Grafana Dashboard
+## Grafana Dashboard
 
-Metrics can be visualized using Grafana dashboards to monitor:
+Visualizes:
 
-• jobs created  
-• jobs completed  
-• job failures  
-• dead letter jobs  
+• job throughput  
+• failures  
 • retries  
+• DLQ events  
 
 ---
 
-### Flower Monitoring
-
-Celery workers can be monitored in real time using Flower.
+## Flower Monitoring
 
 
 http://localhost:5555
 
 
----
-
-# Testing
-
-The project includes automated tests using **pytest**.
-
-Current test coverage includes:
-
-• API endpoint tests  
-• Job service logic tests  
-• Distributed lock behavior tests  
-
-Run tests with:
-
-
-pytest
-
+Real-time Celery monitoring.
 
 ---
 
-# Tech Stack
+# Kafka Event System
 
+## Producer
+
+Workers publish events:
+
+```json
+{
+  "event_type": "job.completed",
+  "job_id": "...",
+  "job_type": "report",
+  "status": "completed",
+  "timestamp": "..."
+}
+Consumer
+
+Kafka consumer listens to job-events:
+
+• Processes events independently
+• Enables future services (analytics, notifications, audit)
+
+Tech Stack
 Backend
-
 
 Python
 FastAPI
 SQLAlchemy
 
-
 Queue & Workers
-
 
 Redis
 Celery
 
+Event Streaming
+
+Kafka (Confluent Client)
 
 Database
 
-
 PostgreSQL
 
-
 Monitoring
-
 
 Prometheus
 Grafana
 Flower
 
-
 Infrastructure
-
 
 Docker
 Docker Compose
 
-
 Testing
-
 
 pytest
 
+Running the Project
 
----
-
-# Running the Project
-
-Clone the repository
-
+Clone repository:
 
 git clone https://github.com/Atakan-Avs/flowqueue-distributed-job-backend
 
-
-Navigate to the project
-
+Enter directory:
 
 cd flowqueue-distributed-job-backend
 
-
-Start the system
-
+Start system:
 
 docker compose up --build
+Learning Outcomes
 
+This project demonstrates:
 
-Services will start:
+• Distributed job processing
+• Event-driven architecture
+• Retry & DLQ patterns
+• Kafka integration
+• System observability
+• Scalable backend design
 
-• FastAPI API  
-• Redis  
-• PostgreSQL  
-• Celery workers  
-• Celery beat scheduler  
-• Prometheus  
-• Grafana  
-• Flower monitoring  
+Future Improvements
 
----
+• Outbox pattern (guaranteed event delivery)
+• Schema-based event validation
+• Multi-consumer services
+• OpenTelemetry tracing
+• Advanced rate limiting
 
-# Learning Goals
-
-This project was built to better understand:
-
-• distributed background job processing  
-• queue based system design  
-• worker architectures  
-• retry and dead letter patterns  
-• distributed locking  
-• observability and monitoring  
-
----
-
-# Future Improvements
-
-Potential improvements for the project include:
-
-• job timeout handling  
-• job cancellation support  
-• distributed tracing (OpenTelemetry)  
-• advanced rate limiting strategies  
-
----
-
-# Author
+Author
 
 Atakan Avsever
 
-GitHub  
+GitHub
 https://github.com/Atakan-Avs
