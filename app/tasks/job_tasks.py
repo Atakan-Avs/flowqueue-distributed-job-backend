@@ -15,6 +15,7 @@ from app.db.session import SessionLocal
 from app.repositories.job_repository import JobRepository
 from app.utils.enums import JobStatus
 from app.handlers.factory import JobHandlerFactory
+from app.core.kafka_producer import publish_job_event
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,17 @@ def process_job(self, job_id: str):
             db.add(attempt)
             db.commit()
 
+        publish_job_event(
+            {
+                "event_type": "job.completed",
+                "job_id": str(job.id),
+                "job_type": job.job_type,
+                "status": job.status,
+                "priority": job.priority,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        )
+        
         jobs_completed_total.inc()
 
         logger.info(
@@ -120,6 +132,20 @@ def process_job(self, job_id: str):
                 job.dead_lettered_at = datetime.utcnow()
                 JobRepository.update(db, job)
 
+                publish_job_event(
+                    {
+                        "event_type": "job.dead_lettered",
+                        "job_id": str(job.id),
+                        "job_type": job.job_type,
+                        "status": job.status,
+                        "priority": job.priority,
+                        "retry_count": job.retry_count,
+                        "error_message": str(exc),
+                        "timestamp": datetime.utcnow().isoformat(),
+                    }
+                )
+                
+            
                 jobs_dead_letter_total.inc()
 
                 logger.error(
@@ -133,6 +159,19 @@ def process_job(self, job_id: str):
             job.status = JobStatus.FAILED.value
             job.error_message = str(exc)
             JobRepository.update(db, job)
+            
+            publish_job_event(
+                {
+                    "event_type": "job.failed",
+                    "job_id": str(job.id),
+                    "job_type": job.job_type,
+                    "status": job.status,
+                    "priority": job.priority,
+                    "retry_count": job.retry_count,
+                    "error_message": str(exc),
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
 
             logger.error(
                 "Job processing failed | job_id=%s | error=%s | retry_count=%s",

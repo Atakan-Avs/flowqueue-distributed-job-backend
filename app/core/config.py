@@ -5,6 +5,9 @@ class Settings(BaseSettings):
     app_name: str = "FlowQueue"
     app_env: str = "development"
     debug: bool = True
+    
+    kafka_bootstrap_servers: str = "kafka:9092"
+    kafka_job_events_topic: str = "job-events"
 
     api_v1_prefix: str = "/api/v1"
 
