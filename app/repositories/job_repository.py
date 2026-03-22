@@ -6,6 +6,10 @@ from sqlalchemy.orm import Session
 from app.db.models.job import Job
 from app.utils.enums import JobStatus
 
+from datetime import datetime, timedelta
+
+from sqlalchemy import select
+
 class JobRepository:
     @staticmethod
     def create(db: Session, job: Job):
@@ -90,5 +94,14 @@ class JobRepository:
         )
 
         total = db.query(func.count(Job.id)).filter(Job.is_dead_letter.is_(True)).scalar() or 0
+        
+    @staticmethod
+    def get_stuck_jobs(db, timeout_minutes: int = 10):
+        cutoff = datetime.utcnow() - timedelta(minutes=timeout_minutes)
 
-        return items, total
+        stmt = select(Job).where(
+            Job.status == JobStatus.PROCESSING.value,
+            Job.updated_at < cutoff,
+            Job.is_dead_letter.is_(False),
+        )
+        return db.scalars(stmt).all()
