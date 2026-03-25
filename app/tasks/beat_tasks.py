@@ -1,10 +1,13 @@
+import json
 import logging
 from datetime import datetime
 
 from app.core.celery_app import celery_app
+from app.core.kafka_producer import publish_job_event
 from app.core.metrics import jobs_created_total, jobs_dead_letter_total
 from app.db.session import SessionLocal
 from app.repositories.job_repository import JobRepository
+from app.repositories.outbox_repository import OutboxRepository
 from app.tasks.job_tasks import process_job
 from app.tasks.scheduled_tasks import create_scheduled_job
 from app.utils.enums import JobStatus
@@ -74,6 +77,33 @@ def recover_stuck_jobs():
                 "Recovered stuck job and requeued | job_id=%s | retry_count=%s",
                 job.id,
                 job.retry_count,
+            )
+
+    finally:
+        db.close()
+
+
+@celery_app.task(name="app.tasks.beat_tasks.publish_outbox_events")
+def publish_outbox_events():
+    db = SessionLocal()
+
+    try:
+        unpublished_events = OutboxRepository.get_unpublished_events(db, limit=100)
+
+        if not unpublished_events:
+            logger.info("No unpublished outbox events found")
+            return
+
+        for event in unpublished_events:
+            payload = json.loads(event.payload)
+
+            publish_job_event(payload)
+            OutboxRepository.mark_as_published(db, event)
+
+            logger.info(
+                "Outbox event published to Kafka | event_id=%s | event_type=%s",
+                event.id,
+                event.event_type,
             )
 
     finally:

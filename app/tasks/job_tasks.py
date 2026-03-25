@@ -16,6 +16,8 @@ from app.repositories.job_repository import JobRepository
 from app.utils.enums import JobStatus
 from app.handlers.factory import JobHandlerFactory
 from app.core.kafka_producer import publish_job_event
+from app.repositories.outbox_repository import OutboxRepository
+from app.core.kafka_producer import publish_job_event
 
 logger = logging.getLogger(__name__)
 
@@ -91,8 +93,11 @@ def process_job(self, job_id: str):
             db.add(attempt)
             db.commit()
 
-        publish_job_event(
-            {
+        OutboxRepository.create_event(
+            db=db,
+            event_type="job.completed",
+            aggregate_id=job.id,
+            payload={
                 "event_type": "job.completed",
                 "job_id": str(job.id),
                 "job_type": job.job_type,
@@ -132,8 +137,11 @@ def process_job(self, job_id: str):
                 job.dead_lettered_at = datetime.utcnow()
                 JobRepository.update(db, job)
 
-                publish_job_event(
-                    {
+                OutboxRepository.create_event(
+                    db=db,
+                    event_type="job.dead_lettered",
+                    aggregate_id=job.id,
+                    payload={
                         "event_type": "job.dead_lettered",
                         "job_id": str(job.id),
                         "job_type": job.job_type,

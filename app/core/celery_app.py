@@ -38,6 +38,10 @@ celery_app.conf.update(
             "task": "app.tasks.beat_tasks.recover_stuck_jobs",
             "schedule": 300.0,
         },
+        "publish-outbox-events-evert-10-seconds": {
+            "task": "app.tasks.beat_tasks.publish_outbox_events",
+            "schedule": 10.0,
 
+    },
     },
 )
