@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from app.core.celery_app import celery_app
 from app.core.distributed_lock import RedisLock
@@ -12,12 +12,10 @@ from app.core.metrics import (
 )
 from app.db.models.job_attempt import JobAttempt
 from app.db.session import SessionLocal
-from app.repositories.job_repository import JobRepository
-from app.utils.enums import JobStatus
 from app.handlers.factory import JobHandlerFactory
-from app.core.kafka_producer import publish_job_event
+from app.repositories.job_repository import JobRepository
 from app.repositories.outbox_repository import OutboxRepository
-from app.core.kafka_producer import publish_job_event
+from app.utils.enums import JobStatus
 
 logger = logging.getLogger(__name__)
 
@@ -98,15 +96,16 @@ def process_job(self, job_id: str):
             event_type="job.completed",
             aggregate_id=job.id,
             payload={
+                "event_id": str(uuid4()),
                 "event_type": "job.completed",
                 "job_id": str(job.id),
                 "job_type": job.job_type,
                 "status": job.status,
                 "priority": job.priority,
                 "timestamp": datetime.utcnow().isoformat(),
-            }
+            },
         )
-        
+
         jobs_completed_total.inc()
 
         logger.info(
@@ -142,6 +141,7 @@ def process_job(self, job_id: str):
                     event_type="job.dead_lettered",
                     aggregate_id=job.id,
                     payload={
+                        "event_id": str(uuid4()),
                         "event_type": "job.dead_lettered",
                         "job_id": str(job.id),
                         "job_type": job.job_type,
@@ -150,10 +150,9 @@ def process_job(self, job_id: str):
                         "retry_count": job.retry_count,
                         "error_message": str(exc),
                         "timestamp": datetime.utcnow().isoformat(),
-                    }
+                    },
                 )
-                
-            
+
                 jobs_dead_letter_total.inc()
 
                 logger.error(
@@ -167,9 +166,13 @@ def process_job(self, job_id: str):
             job.status = JobStatus.FAILED.value
             job.error_message = str(exc)
             JobRepository.update(db, job)
-            
-            publish_job_event(
-                {
+
+            OutboxRepository.create_event(
+                db=db,
+                event_type="job.failed",
+                aggregate_id=job.id,
+                payload={
+                    "event_id": str(uuid4()),
                     "event_type": "job.failed",
                     "job_id": str(job.id),
                     "job_type": job.job_type,
@@ -178,7 +181,7 @@ def process_job(self, job_id: str):
                     "retry_count": job.retry_count,
                     "error_message": str(exc),
                     "timestamp": datetime.utcnow().isoformat(),
-                }
+                },
             )
 
             logger.error(

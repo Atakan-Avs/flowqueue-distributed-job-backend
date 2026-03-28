@@ -1,6 +1,6 @@
 import json
 import logging
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from confluent_kafka import Consumer
 
@@ -17,7 +17,7 @@ def run_consumer():
     consumer = Consumer(
         {
             "bootstrap.servers": settings.kafka_bootstrap_servers,
-            "group.id": "flowqueue-consumer-group",
+            "group.id": "flowqueue-consumer-group-test-2",
             "auto.offset.reset": "earliest",
         }
     )
@@ -48,15 +48,27 @@ def run_consumer():
                 event,
             )
 
-            JobEventAuditRepository.create_event_audit(
+            event_id = UUID(event["event_id"]) if event.get("event_id") else uuid4()
+
+            saved_event = JobEventAuditRepository.create_event_audit(
                 db=db,
+                event_id=event_id,
                 event_type=event["event_type"],
                 job_id=UUID(event["job_id"]),
                 payload=event,
             )
 
+            if saved_event is None:
+                logger.info(
+                    "Duplicate event skipped | event_id=%s | job_id=%s",
+                    str(event_id),
+                    event.get("job_id"),
+                )
+                continue
+
             logger.info(
-                "Event persisted to audit table | type=%s | job_id=%s",
+                "Event persisted to audit table | event_id=%s | type=%s | job_id=%s",
+                str(event_id),
                 event.get("event_type"),
                 event.get("job_id"),
             )
