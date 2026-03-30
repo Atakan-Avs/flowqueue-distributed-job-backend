@@ -11,3 +11,8 @@ class JobPriority(str, Enum):
     HIGH = "high"
     NORMAL = "normal"
     LOW = "low"
+    
+class UserRole(str, Enum):
+    ADMIN = "admin"
+    OPERATOR = "operator"
+    VIEWER = "viewer"
