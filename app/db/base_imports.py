@@ -3,3 +3,4 @@ from app.db.models.job_attempt import JobAttempt  # noqa: F401
 from app.db.models.outbox_event import OutboxEvent  # noqa: F401
 from app.db.models.job_event_audit import JobEventAudit  # noqa: F401
 from app.db.models.user import User  # noqa: F401
+from app.db.models.refresh_token import RefreshToken  # noqa: F401

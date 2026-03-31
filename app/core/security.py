@@ -1,3 +1,5 @@
+import hashlib
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from jose import JWTError, jwt
@@ -8,6 +10,8 @@ from app.core.config import settings
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
+# ---------------- PASSWORD ----------------
+
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
@@ -15,6 +19,8 @@ def hash_password(password: str) -> str:
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
+
+# ---------------- ACCESS TOKEN ----------------
 
 def create_access_token(*, user_id: str, email: str, role: str) -> str:
     expire = datetime.now(timezone.utc) + timedelta(
@@ -25,6 +31,7 @@ def create_access_token(*, user_id: str, email: str, role: str) -> str:
         "sub": user_id,
         "email": email,
         "role": role,
+        "type": "access",
         "exp": expire,
     }
 
@@ -35,13 +42,37 @@ def create_access_token(*, user_id: str, email: str, role: str) -> str:
     )
 
 
-def decode_access_token(token: str) -> dict:
+# ---------------- REFRESH TOKEN ----------------
+
+def create_refresh_token(*, user_id: str) -> str:
+    expire = datetime.now(timezone.utc) + timedelta(
+        days=settings.refresh_token_expire_days
+    )
+
+    payload = {
+        "sub": user_id,
+        "type": "refresh",
+        "exp": expire,
+        "jti": secrets.token_hex(16),  # unique token id
+    }
+
+    return jwt.encode(
+        payload,
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
+    )
+
+
+def hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def decode_token(token: str) -> dict:
     try:
-        payload = jwt.decode(
+        return jwt.decode(
             token,
             settings.jwt_secret_key,
             algorithms=[settings.jwt_algorithm],
         )
-        return payload
     except JWTError as exc:
         raise ValueError("Invalid or expired token") from exc
