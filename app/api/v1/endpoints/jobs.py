@@ -45,6 +45,7 @@ def create_job(
         job_type=job_data.job_type,
         payload=job_data.payload,
         priority=job_data.priority,
+        organization_id=current_user.organization_id,
         idempotency_key=normalized_idempotency_key,
     )
 
@@ -96,6 +97,7 @@ def list_jobs(
 
     items, total = JobService.list_jobs(
         db=db,
+        organization_id=current_user.organization_id,
         skip=skip,
         limit=limit,
         status=status,
@@ -134,6 +136,7 @@ def list_dead_letter_jobs(
 ):
     items, total = JobService.list_dead_letter_jobs(
         db=db,
+        organization_id=current_user.organization_id,
         skip=skip,
         limit=limit,
     )
@@ -167,7 +170,7 @@ def get_job(
         )
     ),
 ):
-    job = JobService.get_job(db, job_id)
+    job = JobService.get_job(db, job_id, current_user.organization_id)
 
     if not job:
         logger.warning(
@@ -197,7 +200,7 @@ def retry_job(
         require_roles(UserRole.ADMIN.value, UserRole.OPERATOR.value)
     ),
 ):
-    job, error = JobService.retry_job(db, job_id)
+    job, error = JobService.retry_job(db, job_id, current_user.organization_id)
 
     if error == "not_found":
         logger.warning(
@@ -271,7 +274,7 @@ def requeue_dead_letter_job(
         require_roles(UserRole.ADMIN.value, UserRole.OPERATOR.value)
     ),
 ):
-    job, error = JobService.requeue_dead_letter_job(db, job_id)
+    job, error = JobService.requeue_dead_letter_job(db, job_id, current_user.organization_id)
 
     if error == "not_found":
         logger.warning(
@@ -312,7 +315,7 @@ def job_metrics(
         )
     ),
 ):
-    metrics = JobService.get_metrics(db)
+    metrics = JobService.get_metrics(db, current_user.organization_id)
 
     logger.info(
         "Job metrics retrieved | user_id=%s | total_jobs=%s | pending=%s | processing=%s | completed=%s | failed=%s",

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 from app.utils.enums import JobPriority, JobStatus
+from sqlalchemy import ForeignKey
 
 
 class Job(Base):
@@ -17,6 +18,14 @@ class Job(Base):
         primary_key=True,
         default=uuid.uuid4,
     )
+    
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+    UUID(as_uuid=True),
+    ForeignKey("organizations.id", ondelete="CASCADE"),
+    nullable=False,
+    index=True,
+    )
+    
     job_type: Mapped[str] = mapped_column(String(100), nullable=False)
     status: Mapped[str] = mapped_column(
         String(50),

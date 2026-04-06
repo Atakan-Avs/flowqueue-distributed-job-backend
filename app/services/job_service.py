@@ -14,7 +14,8 @@ class JobService:
         db: Session,
         job_type: str,
         payload: str,
-        priority: str = JobPriority.NORMAL.value,
+        priority: str,
+        organization_id,  # 🔥 EKLENDİ
         idempotency_key: str | None = None,
     ):
         if idempotency_key:
@@ -28,6 +29,7 @@ class JobService:
             status=JobStatus.PENDING.value,
             priority=priority,
             idempotency_key=idempotency_key,
+            organization_id=organization_id,  # 🔥
         )
 
         try:
@@ -46,26 +48,28 @@ class JobService:
             raise
 
     @staticmethod
-    def get_job(db: Session, job_id: UUID):
-        return JobRepository.get_by_id(db, job_id)
+    def get_job(db: Session, job_id: UUID, organization_id):
+        return JobRepository.get_by_id(db, job_id, organization_id)
 
     @staticmethod
     def list_jobs(
         db: Session,
+        organization_id,
         skip: int = 0,
         limit: int = 10,
         status: str | None = None,
     ):
         return JobRepository.get_all(
             db=db,
+            organization_id=organization_id,
             skip=skip,
             limit=limit,
             status=status,
         )
 
     @staticmethod
-    def retry_job(db: Session, job_id: UUID):
-        job = JobRepository.get_by_id(db, job_id)
+    def retry_job(db: Session, job_id: UUID, organization_id):
+        job = JobRepository.get_by_id(db, job_id, organization_id)
 
         if not job:
             return None, "not_found"
@@ -93,18 +97,20 @@ class JobService:
     @staticmethod
     def list_dead_letter_jobs(
         db: Session,
+        organization_id,
         skip: int = 0,
         limit: int = 10,
     ):
         return JobRepository.get_dead_letter_jobs(
             db=db,
+            organization_id=organization_id,
             skip=skip,
             limit=limit,
         )
 
     @staticmethod
-    def requeue_dead_letter_job(db: Session, job_id: UUID):
-        job = JobRepository.get_by_id(db, job_id)
+    def requeue_dead_letter_job(db: Session, job_id: UUID, organization_id):
+        job = JobRepository.get_by_id(db, job_id, organization_id)
 
         if not job:
             return None, "not_found"
@@ -122,5 +128,5 @@ class JobService:
         return updated_job, None
 
     @staticmethod
-    def get_metrics(db: Session):
-        return JobRepository.get_metrics(db)
+    def get_metrics(db: Session, organization_id):
+        return JobRepository.get_metrics(db, organization_id)
