@@ -1,5 +1,6 @@
 import logging
 from contextlib import asynccontextmanager
+import app.db.models  # noqa: F401
 
 from fastapi import FastAPI, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
