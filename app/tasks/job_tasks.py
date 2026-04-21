@@ -38,7 +38,7 @@ def process_job(self, job_id: str):
     attempt = None
 
     try:
-        job = JobRepository.get_by_id(db, UUID(job_id))
+        job = JobRepository.get_by_id_unscoped(db, UUID(job_id))
 
         if not job:
             logger.warning("Job not found in worker | job_id=%s", job_id)
@@ -115,7 +115,7 @@ def process_job(self, job_id: str):
         )
 
     except Exception as exc:
-        job = JobRepository.get_by_id(db, UUID(job_id))
+        job = JobRepository.get_by_id_unscoped(db, UUID(job_id))
 
         if attempt:
             attempt.status = "failed"

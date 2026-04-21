@@ -24,7 +24,6 @@ class RefreshTokenRepository:
             RefreshToken.token_hash == token_hash
         ).first()
 
-    # 🔥 EKLENEN METHOD (logout için gerekli)
     @staticmethod
     def revoke(db: Session, token: RefreshToken):
         token.revoked_at = datetime.now(timezone.utc)

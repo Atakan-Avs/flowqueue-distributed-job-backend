@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models.job import Job
 from app.repositories.job_repository import JobRepository
-from app.utils.enums import JobPriority, JobStatus
+from app.utils.enums import JobStatus
 
 
 class JobService:
@@ -15,7 +15,7 @@ class JobService:
         job_type: str,
         payload: str,
         priority: str,
-        organization_id,  # 🔥 EKLENDİ
+        organization_id, 
         idempotency_key: str | None = None,
     ):
         if idempotency_key:
@@ -29,7 +29,7 @@ class JobService:
             status=JobStatus.PENDING.value,
             priority=priority,
             idempotency_key=idempotency_key,
-            organization_id=organization_id,  # 🔥
+            organization_id=organization_id, 
         )
 
         try:

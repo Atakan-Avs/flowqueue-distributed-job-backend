@@ -6,4 +6,12 @@ from app.db.models.job_event_audit import JobEventAudit  # noqa: F401
 from app.db.models.outbox_event import OutboxEvent  # noqa: F401
 from app.db.models.refresh_token import RefreshToken  # noqa: F401
 
-__all__ = ["Job" , "JobAttempt" , "OutboxEvent" , "JobEventAudit"]
+__all__ = [
+    "Organization",
+    "User",
+    "Job",
+    "JobAttempt",
+    "JobEventAudit",
+    "OutboxEvent",
+    "RefreshToken",
+]

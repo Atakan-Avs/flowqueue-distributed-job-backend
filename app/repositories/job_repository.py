@@ -6,9 +6,6 @@ from sqlalchemy.orm import Session
 from app.db.models.job import Job
 from app.utils.enums import JobStatus
 
-from datetime import datetime, timedelta
-from sqlalchemy import select
-
 
 class JobRepository:
     @staticmethod
@@ -24,6 +21,10 @@ class JobRepository:
             Job.id == job_id,
             Job.organization_id == organization_id,
         ).first()
+        
+    @staticmethod
+    def get_by_id_unscoped(db: Session, job_id: UUID):
+        return db.query(Job).filter(Job.id == job_id).first()
 
     @staticmethod
     def get_by_idempotency_key(db: Session, idempotency_key: str):
