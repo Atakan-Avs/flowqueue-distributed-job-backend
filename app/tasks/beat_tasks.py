@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.core.celery_app import celery_app
 from app.core.kafka_producer import publish_job_event
@@ -55,7 +55,7 @@ def recover_stuck_jobs():
                     "Job moved to dead letter after being stuck in processing state."
                 )
                 job.is_dead_letter = True
-                job.dead_lettered_at = datetime.utcnow()
+                job.dead_lettered_at = datetime.now(timezone.utc)
                 JobRepository.update(db, job)
 
                 jobs_dead_letter_total.inc()

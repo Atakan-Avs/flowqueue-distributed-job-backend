@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from sqlalchemy import func
@@ -21,7 +22,7 @@ class JobRepository:
             Job.id == job_id,
             Job.organization_id == organization_id,
         ).first()
-        
+
     @staticmethod
     def get_by_id_unscoped(db: Session, job_id: UUID):
         return db.query(Job).filter(Job.id == job_id).first()
@@ -76,31 +77,31 @@ class JobRepository:
 
         pending = db.query(func.count(Job.id)).filter(
             Job.organization_id == organization_id,
-            Job.status == JobStatus.PENDING.value
+            Job.status == JobStatus.PENDING.value,
         ).scalar() or 0
 
         processing = db.query(func.count(Job.id)).filter(
             Job.organization_id == organization_id,
-            Job.status == JobStatus.PROCESSING.value
+            Job.status == JobStatus.PROCESSING.value,
         ).scalar() or 0
 
         completed = db.query(func.count(Job.id)).filter(
             Job.organization_id == organization_id,
-            Job.status == JobStatus.COMPLETED.value
+            Job.status == JobStatus.COMPLETED.value,
         ).scalar() or 0
 
         failed = db.query(func.count(Job.id)).filter(
             Job.organization_id == organization_id,
-            Job.status == JobStatus.FAILED.value
+            Job.status == JobStatus.FAILED.value,
         ).scalar() or 0
 
-        return dict(
-            total_jobs=total_jobs,
-            pending=pending,
-            processing=processing,
-            completed=completed,
-            failed=failed,
-        )
+        return {
+            "total_jobs": total_jobs,
+            "pending": pending,
+            "processing": processing,
+            "completed": completed,
+            "failed": failed,
+        }
 
     @staticmethod
     def get_dead_letter_jobs(
@@ -111,7 +112,7 @@ class JobRepository:
     ):
         query = db.query(Job).filter(
             Job.organization_id == organization_id,
-            Job.is_dead_letter.is_(True)
+            Job.is_dead_letter.is_(True),
         )
 
         items = (
@@ -123,7 +124,21 @@ class JobRepository:
 
         total = db.query(func.count(Job.id)).filter(
             Job.organization_id == organization_id,
-            Job.is_dead_letter.is_(True)
+            Job.is_dead_letter.is_(True),
         ).scalar() or 0
 
         return items, total
+
+    @staticmethod
+    def get_stuck_jobs(db: Session, timeout_minutes: int = 5):
+        threshold = datetime.now(timezone.utc) - timedelta(minutes=timeout_minutes)
+
+        return (
+            db.query(Job)
+            .filter(
+                Job.status == JobStatus.PROCESSING.value,
+                Job.updated_at < threshold,
+                Job.is_dead_letter.is_(False),
+            )
+            .all()
+        )

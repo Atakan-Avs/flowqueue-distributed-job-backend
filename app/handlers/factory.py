@@ -1,24 +1,43 @@
-from app.handlers.email_handler import EmailJobHandler
-from app.handlers.report_handler import ReportJobHandler
-from app.handlers.scheduled_report_handler import ScheduledReportJobHandler
-from app.handlers.webhook_handler import WebhookJobHandler
+import importlib
+import pkgutil
+
+import app.handlers
+from app.handlers.base import BaseJobHandler
 
 
 class JobHandlerFactory:
-    @staticmethod
-    def get_handler(job_type: str):
+    _handlers: dict[str, BaseJobHandler] = {}
+
+    @classmethod
+    def _load_handlers(cls):
+        if cls._handlers:
+            return
+
+        for _, module_name, _ in pkgutil.iter_modules(app.handlers.__path__):
+            if module_name in {"base", "factory", "__init__"}:
+                continue
+
+            module = importlib.import_module(f"app.handlers.{module_name}")
+
+            for attr_name in dir(module):
+                attr = getattr(module, attr_name)
+
+                if (
+                    isinstance(attr, type)
+                    and issubclass(attr, BaseJobHandler)
+                    and attr is not BaseJobHandler
+                ):
+                    instance = attr()
+                    cls._handlers[instance.job_type] = instance
+
+    @classmethod
+    def get_handler(cls, job_type: str):
+        cls._load_handlers()
+
         normalized_job_type = job_type.strip().lower()
+        handler = cls._handlers.get(normalized_job_type)
 
-        if normalized_job_type == "email":
-            return EmailJobHandler()
+        if not handler:
+            raise ValueError(f"Unsupported job type: {job_type}")
 
-        if normalized_job_type == "report":
-            return ReportJobHandler()
-
-        if normalized_job_type == "webhook":
-            return WebhookJobHandler()
-
-        if normalized_job_type == "scheduled_report":
-            return ScheduledReportJobHandler()
-
-        raise ValueError(f"Unsupported job type: {job_type}")
+        return handler

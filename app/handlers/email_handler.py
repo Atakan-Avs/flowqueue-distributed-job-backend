@@ -4,6 +4,8 @@ from app.handlers.base import BaseJobHandler
 
 
 class EmailJobHandler(BaseJobHandler):
+    job_type = "email"
+
     def handle(self, payload: str) -> str:
         time.sleep(2)
 

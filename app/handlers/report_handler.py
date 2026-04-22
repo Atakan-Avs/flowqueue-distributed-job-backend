@@ -4,6 +4,8 @@ from app.handlers.base import BaseJobHandler
 
 
 class ReportJobHandler(BaseJobHandler):
+    job_type = "report"
+
     def handle(self, payload: str) -> str:
         time.sleep(3)
 
