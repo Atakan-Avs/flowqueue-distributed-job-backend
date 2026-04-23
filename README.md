@@ -1,6 +1,6 @@
 # FlowQueue – Distributed Job Processing Backend
 
-FlowQueue is a production-grade distributed job processing system designed to demonstrate real-world backend engineering concepts such as asynchronous processing, event-driven architecture, reliability, and system design patterns.
+FlowQueue is a production-grade distributed job processing system designed to simulate real-world backend architectures with a strong focus on reliability, observability, and fault tolerance.
 
 ---
 
@@ -17,21 +17,21 @@ FlowQueue is a production-grade distributed job processing system designed to de
 
 ## 🧠 System Architecture
 
+> This system is designed to simulate real-world distributed job processing pipelines with reliability, observability, and fault tolerance in mind.
 
-Client
-↓
-FastAPI (API Layer)
-↓
-Redis Queue
-↓
-Celery Workers
-↓
-PostgreSQL (State + Outbox)
-↓
-Kafka (Event Streaming)
-↓
-Consumers
-
+Client  
+↓  
+FastAPI (API Layer)  
+↓  
+Redis Queue  
+↓  
+Celery Workers  
+↓  
+PostgreSQL (State + Outbox)  
+↓  
+Kafka (Event Streaming)  
+↓  
+Consumers  
 
 ---
 
@@ -108,13 +108,13 @@ Jobs stuck in `processing` state are automatically:
 
 ## 🔄 Job Lifecycle
 
-1. Job created via API
-2. Stored in PostgreSQL
-3. Enqueued in Redis
-4. Processed by Celery worker
-5. Event written to Outbox table
-6. Event published to Kafka
-7. Consumer processes event
+1. Job created via API  
+2. Stored in PostgreSQL  
+3. Enqueued in Redis  
+4. Processed by Celery worker  
+5. Event written to Outbox table  
+6. Event published to Kafka  
+7. Consumer processes event  
 
 ---
 
@@ -137,9 +137,9 @@ Jobs stuck in `processing` state are automatically:
 - Revokes compromised sessions
 
 ### ✔ Role-Based Access Control (RBAC)
-- `admin` → full access
-- `operator` → job management
-- `viewer` → read-only
+- `admin` → full access  
+- `operator` → job management  
+- `viewer` → read-only  
 
 ---
 
@@ -164,9 +164,10 @@ Jobs stuck in `processing` state are automatically:
 ## 📊 Observability
 
 - Structured logging
-- Prometheus-style metrics
-- Kafka event tracking
+- Prometheus metrics (multi-process support for Celery workers)
+- Kafka event tracking (real-time event streaming)
 - Worker activity monitoring
+- Grafana dashboards for system behavior visualization
 
 ---
 
@@ -177,16 +178,17 @@ docker compose up --build
 🎯 Key Concepts Demonstrated
 Distributed Systems
 Event-Driven Architecture
-Outbox Pattern
+Transactional Outbox Pattern
 Retry & Dead Letter Queue
 Idempotency
 Distributed Locking
 Plugin Architecture
 Stuck Job Recovery
-JWT Auth & Session Security
+JWT Authentication & Session Security
+Observability & Monitoring
 🚀 Why This Project?
 
-This project simulates backend systems used in large-scale companies like:
+This project simulates backend systems used in large-scale companies such as:
 
 Uber
 Netflix
@@ -201,8 +203,8 @@ Production-ready backend design
 🧭 Roadmap
 Multi-tenant architecture (organization isolation)
 Rate limiting & quotas
-Advanced monitoring (Grafana dashboards)
-Horizontal scaling improvements
+Advanced monitoring improvements
+Horizontal scaling strategies
 👤 Author
 
 Atakan Avsever
