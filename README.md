@@ -1,6 +1,6 @@
 # FlowQueue – Distributed Job Processing Backend
 
-FlowQueue is a production-grade distributed job processing system designed to demonstrate real-world backend engineering concepts such as asynchronous processing, event-driven architecture, reliability, and secure authentication.
+FlowQueue is a production-grade distributed job processing system designed to demonstrate real-world backend engineering concepts such as asynchronous processing, event-driven architecture, reliability, and system design patterns.
 
 ---
 
@@ -15,70 +15,94 @@ FlowQueue is a production-grade distributed job processing system designed to de
 
 ---
 
-## 🧠 System Design Overview
+## 🧠 System Architecture
 
-Client → FastAPI → Redis Queue → Celery Workers → PostgreSQL  
-                                      ↓  
-                                Kafka Events → Consumers
+
+Client
+↓
+FastAPI (API Layer)
+↓
+Redis Queue
+↓
+Celery Workers
+↓
+PostgreSQL (State + Outbox)
+↓
+Kafka (Event Streaming)
+↓
+Consumers
+
 
 ---
 
-## ⚙️ Features
+## ⚙️ Core Features
 
-### 🔹 Job Processing
-- Asynchronous job execution via Celery
-- Retry mechanism with exponential backoff
-- Dead Letter Queue (DLQ) support
+### 🔹 Asynchronous Job Processing
+- Background job execution using Celery
+- Priority-based queue system
+- Distributed worker processing
 
-### 🔹 Reliability
-- Idempotency key support (prevents duplicate job creation)
-- Distributed locking using Redis (prevents double processing)
-- Duplicate event protection on consumer side
+### 🔹 Reliability & Fault Tolerance
+- Retry mechanism with retry limits
+- Dead Letter Queue (DLQ)
+- Stuck job detection & recovery
+- Automatic job requeueing
+
+### 🔹 Distributed System Safety
+- Idempotency keys (prevents duplicate job creation)
+- Redis-based distributed locking (prevents double processing)
+- Safe retry logic with failure tracking
 
 ### 🔹 Event-Driven Architecture
-- Kafka producer for job lifecycle events
-- Kafka consumer for processing events
-- Transactional Outbox Pattern for reliable event publishing
+- Kafka integration for job lifecycle events
+- Event-based system decoupling
+- Consumer-based processing model
 
 ### 🔹 Data Consistency
-- Guaranteed event delivery via outbox pattern
-- Event-based audit logging
-
-### 🔹 Monitoring & Observability
-- Structured logging
-- Prometheus-style metrics
-- System behavior visibility
+- Transactional Outbox Pattern
+- Guaranteed event delivery
+- Duplicate event protection
 
 ---
 
-## 🔐 Authentication & Authorization
+## 🧩 Architecture Decisions
 
-FlowQueue includes a **production-grade authentication system**:
+### 🔸 Service Layer Separation
+Business logic is decoupled from the worker layer and centralized in a service layer:
+- Improves testability
+- Improves maintainability
+- Enables scalable design
 
-### ✔ JWT Authentication
-- Access tokens (short-lived)
-- Secure password hashing (bcrypt)
+---
 
-### ✔ Refresh Token System
-- Refresh tokens stored securely in the database (hashed)
-- Token expiration management
+### 🔸 Plugin-Based Handler System
+Job handlers are dynamically discovered and loaded:
+- Open/Closed Principle (OCP)
+- New job types can be added without modifying existing code
+- Clean and extensible architecture
 
-### ✔ Refresh Token Rotation
-- New refresh token issued on each refresh
-- Old tokens automatically invalidated
+---
 
-### ✔ Reuse Detection (Security)
-- Reuse of revoked tokens is detected
-- System treats reused tokens as potential security threats
+### 🔸 Outbox Pattern
+Events are first written to the database and then published:
+- Prevents data inconsistency
+- Ensures reliable event delivery
+- Handles Kafka failures safely
 
-### ✔ Logout & Session Control
-- Refresh tokens revoked on logout
-- Session invalidation supported
+---
 
-### ✔ Role-Based Access Control (RBAC)
-- `admin` → full access
-- `operator` → create & manage jobs
-- `viewer` → read-only access
+### 🔸 Dead Letter Queue (DLQ)
+Failed jobs are moved to a separate state:
+- Prevents infinite retry loops
+- Enables manual inspection & recovery
+
+---
+
+### 🔸 Stuck Job Recovery
+Jobs stuck in `processing` state are automatically:
+- Recovered
+- Requeued
+- Or moved to dead letter
 
 ---
 
@@ -86,44 +110,63 @@ FlowQueue includes a **production-grade authentication system**:
 
 1. Job created via API
 2. Stored in PostgreSQL
-3. Published to Redis queue
+3. Enqueued in Redis
 4. Processed by Celery worker
-5. Event emitted to Kafka
-6. Consumer processes event (audit, logging, etc.)
+5. Event written to Outbox table
+6. Event published to Kafka
+7. Consumer processes event
 
 ---
 
-## 🔒 Advanced Concepts Implemented
+## 🔐 Authentication & Authorization
 
-- Idempotency
-- Distributed Locking
-- Dead Letter Queue
-- Retry Mechanisms
-- Event-Driven Architecture
-- Outbox Pattern
-- Duplicate Event Protection
-- JWT Authentication
-- Refresh Token Rotation
-- Token Reuse Detection
-- Role-Based Access Control (RBAC)
+### ✔ JWT Authentication
+- Access tokens (short-lived)
+- Secure password hashing (bcrypt)
+
+### ✔ Refresh Token System
+- Secure storage (hashed tokens)
+- Token expiration handling
+
+### ✔ Refresh Token Rotation
+- New token issued on each refresh
+- Old tokens invalidated
+
+### ✔ Reuse Detection
+- Detects token reuse attacks
+- Revokes compromised sessions
+
+### ✔ Role-Based Access Control (RBAC)
+- `admin` → full access
+- `operator` → job management
+- `viewer` → read-only
 
 ---
 
-## 📦 API Endpoints (Examples)
+## 📦 API Endpoints
 
 ### 🔐 Auth
-- `POST /auth/login` → Login (returns access + refresh token)
-- `POST /auth/refresh` → Get new tokens
-- `POST /auth/logout` → Logout (revoke token)
-- `GET /auth/me` → Current user
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/refresh`
+- `POST /api/v1/auth/logout`
+- `GET /api/v1/auth/me`
 
 ### 📌 Jobs
-- `POST /jobs` → Create job
-- `GET /jobs` → List jobs
-- `GET /jobs/{id}` → Job detail
-- `POST /jobs/{id}/retry` → Retry job
-- `GET /jobs/dead-letter` → Failed jobs
-- `POST /jobs/{id}/requeue` → Requeue job
+- `POST /api/v1/jobs`
+- `GET /api/v1/jobs`
+- `GET /api/v1/jobs/{id}`
+- `POST /api/v1/jobs/{id}/retry`
+- `GET /api/v1/jobs/dead-letter`
+- `POST /api/v1/jobs/{id}/requeue`
+
+---
+
+## 📊 Observability
+
+- Structured logging
+- Prometheus-style metrics
+- Kafka event tracking
+- Worker activity monitoring
 
 ---
 
@@ -131,22 +174,32 @@ FlowQueue includes a **production-grade authentication system**:
 
 ```bash
 docker compose up --build
-🎯 Why This Project?
+🎯 Key Concepts Demonstrated
+Distributed Systems
+Event-Driven Architecture
+Outbox Pattern
+Retry & Dead Letter Queue
+Idempotency
+Distributed Locking
+Plugin Architecture
+Stuck Job Recovery
+JWT Auth & Session Security
+🚀 Why This Project?
 
-This project simulates real-world backend systems used in companies like:
+This project simulates backend systems used in large-scale companies like:
 
 Uber
 Netflix
 Amazon
 
-and focuses on:
+It focuses on:
 
 Scalability
+Reliability
 Fault tolerance
-Distributed systems design
-Secure authentication & session management
+Production-ready backend design
 🧭 Roadmap
-Multi-tenant architecture (organization-based isolation)
+Multi-tenant architecture (organization isolation)
 Rate limiting & quotas
 Advanced monitoring (Grafana dashboards)
 Horizontal scaling improvements
