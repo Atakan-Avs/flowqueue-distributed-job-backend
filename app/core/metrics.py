@@ -1,4 +1,8 @@
+import os
+
 from prometheus_client import Counter
+
+os.environ.setdefault("PROMETHEUS_MULTIPROC_DIR", "/tmp/prometheus")
 
 jobs_created_total = Counter(
     "flowqueue_jobs_created_total",

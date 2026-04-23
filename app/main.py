@@ -1,9 +1,14 @@
 import logging
 from contextlib import asynccontextmanager
-import app.db.models  # noqa: F401
 
+import app.db.models  # noqa: F401
 from fastapi import FastAPI, Response
-from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    CollectorRegistry,
+    generate_latest,
+    multiprocess,
+)
 from sqlalchemy import text
 
 from app.api.v1.router import api_router
@@ -44,7 +49,10 @@ def root():
 
 @app.get("/metrics")
 def metrics():
+    registry = CollectorRegistry()
+    multiprocess.MultiProcessCollector(registry)
+
     return Response(
-        content=generate_latest(),
+        content=generate_latest(registry),
         media_type=CONTENT_TYPE_LATEST,
     )
