@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.dependencies import require_roles
 from app.core.metrics import jobs_created_total
-from app.core.rate_limit import rate_limiter
+from app.core.rate_limiter import RateLimiter
 from app.db.models.user import User
 from app.db.session import get_db
 from app.schemas.job import JobCreate, JobListResponse, JobResponse
@@ -18,12 +18,16 @@ from app.utils.enums import JobPriority, JobStatus, UserRole
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+rate_limit_create_job = RateLimiter(limit=10, window_seconds=60)
+rate_limit_read_jobs = RateLimiter(limit=60, window_seconds=60)
+rate_limit_job_actions = RateLimiter(limit=20, window_seconds=60)
+
 
 @router.post("/jobs", response_model=JobResponse, status_code=201)
 def create_job(
     job_data: JobCreate,
     db: Session = Depends(get_db),
-    _: None = Depends(rate_limiter),
+    _: None = Depends(rate_limit_create_job),
     current_user: User = Depends(
         require_roles(UserRole.ADMIN.value, UserRole.OPERATOR.value)
     ),
@@ -78,7 +82,7 @@ def list_jobs(
     limit: int = Query(10, ge=1, le=100),
     status: str | None = Query(None),
     db: Session = Depends(get_db),
-    _: None = Depends(rate_limiter),
+    _: None = Depends(rate_limit_read_jobs),
     current_user: User = Depends(
         require_roles(
             UserRole.ADMIN.value,
@@ -125,7 +129,7 @@ def list_dead_letter_jobs(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(get_db),
-    _: None = Depends(rate_limiter),
+    _: None = Depends(rate_limit_read_jobs),
     current_user: User = Depends(
         require_roles(
             UserRole.ADMIN.value,
@@ -161,7 +165,7 @@ def list_dead_letter_jobs(
 def get_job(
     job_id: UUID,
     db: Session = Depends(get_db),
-    _: None = Depends(rate_limiter),
+    _: None = Depends(rate_limit_read_jobs),
     current_user: User = Depends(
         require_roles(
             UserRole.ADMIN.value,
@@ -195,7 +199,7 @@ def get_job(
 def retry_job(
     job_id: UUID,
     db: Session = Depends(get_db),
-    _: None = Depends(rate_limiter),
+    _: None = Depends(rate_limit_job_actions),
     current_user: User = Depends(
         require_roles(UserRole.ADMIN.value, UserRole.OPERATOR.value)
     ),
@@ -269,12 +273,16 @@ def retry_job(
 def requeue_dead_letter_job(
     job_id: UUID,
     db: Session = Depends(get_db),
-    _: None = Depends(rate_limiter),
+    _: None = Depends(rate_limit_job_actions),
     current_user: User = Depends(
         require_roles(UserRole.ADMIN.value, UserRole.OPERATOR.value)
     ),
 ):
-    job, error = JobService.requeue_dead_letter_job(db, job_id, current_user.organization_id)
+    job, error = JobService.requeue_dead_letter_job(
+        db,
+        job_id,
+        current_user.organization_id,
+    )
 
     if error == "not_found":
         logger.warning(
@@ -306,7 +314,7 @@ def requeue_dead_letter_job(
 @router.get("/metrics/jobs", response_model=JobMetricsResponse)
 def job_metrics(
     db: Session = Depends(get_db),
-    _: None = Depends(rate_limiter),
+    _: None = Depends(rate_limit_read_jobs),
     current_user: User = Depends(
         require_roles(
             UserRole.ADMIN.value,
