@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.dependencies import require_roles
 from app.core.metrics import jobs_created_total
+from app.core.quota_limiter import DailyQuotaLimiter
 from app.core.rate_limiter import RateLimiter
 from app.db.models.user import User
 from app.db.session import get_db
@@ -22,12 +23,15 @@ rate_limit_create_job = RateLimiter(limit=10, window_seconds=60)
 rate_limit_read_jobs = RateLimiter(limit=60, window_seconds=60)
 rate_limit_job_actions = RateLimiter(limit=20, window_seconds=60)
 
+daily_quota_create_job = DailyQuotaLimiter(limit=3)
+
 
 @router.post("/jobs", response_model=JobResponse, status_code=201)
 def create_job(
     job_data: JobCreate,
     db: Session = Depends(get_db),
     _: None = Depends(rate_limit_create_job),
+    __: None = Depends(daily_quota_create_job),
     current_user: User = Depends(
         require_roles(UserRole.ADMIN.value, UserRole.OPERATOR.value)
     ),
