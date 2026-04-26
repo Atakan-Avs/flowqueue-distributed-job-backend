@@ -17,6 +17,7 @@ from app.utils.enums import JobStatus
 logger = logging.getLogger(__name__)
 
 MAX_RETRY_COUNT = 3
+HIGH_FAILURE_RETRY_THRESHOLD = 2
 
 
 @celery_app.task(name="app.tasks.job_tasks.process_job", bind=True, max_retries=3)
@@ -96,8 +97,16 @@ def process_job(self, job_id: str):
                 max_retry_count=MAX_RETRY_COUNT,
             )
 
-            job_retries_total.inc()
             jobs_failed_total.inc()
+
+            if job.retry_count >= HIGH_FAILURE_RETRY_THRESHOLD:
+                logger.warning(
+                    "High failure risk detected | job_id=%s | job_type=%s | retry_count=%s | error=%s",
+                    job.id,
+                    job.job_type,
+                    job.retry_count,
+                    str(exc),
+                )
 
             if moved_to_dead_letter:
                 JobService.publish_job_dead_letter_event(db, job, str(exc))
@@ -111,6 +120,7 @@ def process_job(self, job_id: str):
                 )
                 return
 
+            job_retries_total.inc()
             JobService.publish_job_failed_event(db, job, str(exc))
 
             logger.error(

@@ -1,8 +1,7 @@
-from fastapi import APIRouter, HTTPException
-from sqlalchemy import text
+from fastapi import APIRouter, status
+from fastapi.responses import JSONResponse
 
-from app.core.redis_client import redis_client
-from app.db.session import engine
+from app.services.health_service import HealthService
 
 router = APIRouter()
 
@@ -17,38 +16,20 @@ def health_check():
 
 @router.get("/ready")
 def readiness_check():
-    database_status = "ok"
-    redis_status = "ok"
+    result = HealthService.check_all()
 
-    try:
-        with engine.connect() as connection:
-            connection.execute(text("SELECT 1"))
-    except Exception:
-        database_status = "error"
-
-    try:
-        redis_client.ping()
-    except Exception:
-        redis_status = "error"
-
-    if database_status == "error" or redis_status == "error":
-        raise HTTPException(
-            status_code=503,
-            detail={
+    if result["status"] == "unhealthy":
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
                 "status": "not_ready",
                 "service": "flowqueue",
-                "dependencies": {
-                    "database": database_status,
-                    "redis": redis_status,
-                },
+                "dependencies": result["services"],
             },
         )
 
     return {
         "status": "ready",
         "service": "flowqueue",
-        "dependencies": {
-            "database": database_status,
-            "redis": redis_status,
-        },
+        "dependencies": result["services"],
     }

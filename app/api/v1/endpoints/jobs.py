@@ -23,7 +23,7 @@ rate_limit_create_job = RateLimiter(limit=10, window_seconds=60)
 rate_limit_read_jobs = RateLimiter(limit=60, window_seconds=60)
 rate_limit_job_actions = RateLimiter(limit=20, window_seconds=60)
 
-daily_quota_create_job = DailyQuotaLimiter(limit=3)
+daily_quota_create_job = DailyQuotaLimiter(limit=100)
 
 
 @router.post("/jobs", response_model=JobResponse, status_code=201)
